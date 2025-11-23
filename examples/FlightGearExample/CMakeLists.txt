@@ -5,7 +5,7 @@ project(FlightGearExample LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 
 add_executable(FlightGearExample main.cpp)
 
@@ -15,4 +15,4 @@ install(TARGETS FlightGearExample
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
-target_link_libraries(FlightGearExample PUBLIC Boost::system)
+target_link_libraries(FlightGearExample PUBLIC Boost::boost)
