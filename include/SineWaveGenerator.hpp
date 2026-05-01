@@ -2,6 +2,9 @@
 
 #include <cmath>
 #include <mutex>
+#include <unordered_map>
+#include <vector>
+#include <string>
 
 namespace SimulinkBlock
 {
@@ -72,8 +75,52 @@ public:
     }
 
     /**
-     * @brief Обнулить текущие настройки блока
+     * @brief Получить список доступных настроек
+     * @return Вектор строк с именами настроек
      */
+    std::vector<std::string> getSettingsList() const
+    {
+        return {"amplitude", "frequency", "phase"};
+    }
+
+    /**
+     * @brief Установить настройки из карты параметров
+     * @param settings Карта параметров (ключ - имя настройки, значение - значение настройки)
+     */
+    void setSettings(const std::unordered_map<std::string, std::string> &settings)
+    {
+        static std::mutex setMtx;
+        std::lock_guard<std::mutex> lock(setMtx);
+
+        for (const auto &[key, value] : settings) {
+            if (key == "amplitude") {
+                try {
+                    U val = static_cast<U>(std::stod(value));
+                    amplitude = val;
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "frequency") {
+                try {
+                    U val = static_cast<U>(std::stod(value));
+                    frequency = val;
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "phase") {
+                try {
+                    U val = static_cast<U>(std::stod(value));
+                    phase = val;
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            }
+        }
+    }
+
+    /**
+      * @brief Обнулить текущие настройки блока
+      */
     void reset()
     {
         std::lock_guard<std::mutex> lock(mtx);

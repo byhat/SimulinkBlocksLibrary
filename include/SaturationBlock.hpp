@@ -3,6 +3,9 @@
 #include <limits>
 #include <mutex>
 #include <stdexcept>
+#include <unordered_map>
+#include <vector>
+#include <string>
 
 namespace SimulinkBlock
 {
@@ -82,8 +85,45 @@ public:
     }
 
     /**
-     * @brief Обнулить текущий выход блока
+     * @brief Получить список доступных настроек
+     * @return Вектор строк с именами настроек
      */
+    std::vector<std::string> getSettingsList() const
+    {
+        return {"min_limit", "max_limit"};
+    }
+
+    /**
+     * @brief Установить настройки из карты параметров
+     * @param settings Карта параметров (ключ - имя настройки, значение - значение настройки)
+     */
+    void setSettings(const std::unordered_map<std::string, std::string> &settings)
+    {
+        static std::mutex setMtx;
+        std::lock_guard<std::mutex> lock(setMtx);
+
+        for (const auto &[key, value] : settings) {
+            if (key == "min_limit") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    setLimits(val, maxLimit);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "max_limit") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    setLimits(minLimit, val);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            }
+        }
+    }
+
+    /**
+      * @brief Обнулить текущий выход блока
+      */
     void reset()
     {
         std::lock_guard<std::mutex> lock(mtx);

@@ -3,6 +3,10 @@
 #include <array>
 #include <algorithm>
 #include <mutex>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <sstream>
 
 
 namespace SimulinkBlock
@@ -80,12 +84,74 @@ public:
     }
 
     /**
-     * @brief Обнулить текущий выход блока
+     * @brief Получить список доступных настроек
+     * @return Вектор строк с именами настроек
      */
+    std::vector<std::string> getSettingsList() const
+    {
+        return {"input_array", "output_array"};
+    }
+
+    /**
+     * @brief Установить настройки из карты параметров
+     * @param settings Карта параметров (ключ - имя настройки, значение - значение настройки)
+     */
+    void setSettings(const std::unordered_map<std::string, std::string> &settings)
+    {
+        static std::mutex setMtx;
+        std::lock_guard<std::mutex> lock(setMtx);
+
+        for (const auto &[key, value] : settings) {
+            if (key == "input_array") {
+                try {
+                    std::array<T, N> arr = parseArray(value);
+                    tableInputs = arr;
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "output_array") {
+                try {
+                    std::array<T, N> arr = parseArray(value);
+                    tableOutputs = arr;
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            }
+        }
+    }
+
+    /**
+      * @brief Обнулить текущий выход блока
+      */
     void reset()
     {
         std::lock_guard<std::mutex> lock(mtx);
         output = T(0);
+    }
+
+private:
+    /**
+     * @brief Разобрать строку с разделителями-запятыми в массив
+     * @param str Строка с разделителями-запятыми
+     * @return Массив значений типа T
+     */
+    std::array<T, N> parseArray(const std::string &str)
+    {
+        std::array<T, N> result;
+        std::stringstream ss(str);
+        std::string token;
+        size_t index = 0;
+
+        while (std::getline(ss, token, ',') && index < N) {
+            try {
+                result[index] = static_cast<T>(std::stod(token));
+                ++index;
+            } catch (...) {
+                // Игнорируем ошибки преобразования отдельных значений
+            }
+        }
+
+        return result;
     }
 
 private:

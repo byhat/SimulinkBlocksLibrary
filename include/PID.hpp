@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <mutex>
 #include <stdexcept>
+#include <unordered_map>
+#include <vector>
+#include <string>
+#include <sstream>
 
 
 namespace SimulinkBlock
@@ -184,6 +188,82 @@ public:
     {
         std::lock_guard<std::mutex> lock(mtx);
         return pidOutput;
+    }
+
+    /**
+     * @brief Получить список доступных настроек
+     * @return Вектор строк с именами настроек
+     */
+    std::vector<std::string> getSettingsList() const
+    {
+        return {"kp", "ki", "kd", "integrator_min", "integrator_max", "derivative_min", "derivative_max"};
+    }
+
+    /**
+     * @brief Установить настройки из карты параметров
+     * @param settings Карта параметров (ключ - имя настройки, значение - значение настройки)
+     */
+    void setSettings(const std::unordered_map<std::string, std::string> &settings)
+    {
+        static std::mutex setMtx;
+        std::lock_guard<std::mutex> lock(setMtx);
+
+        for (const auto &[key, value] : settings) {
+            if (key == "kp") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    setPCoeff(val);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "ki") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    setICoeff(val);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "kd") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    setDCoeff(val);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "integrator_min") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    T max = integrator.getState(); // Временное значение для получения текущего максимума
+                    setIntegratorLimits(val, max);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "integrator_max") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    T min = T{0}; // Временное значение для получения текущего минимума
+                    setIntegratorLimits(min, val);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "derivative_min") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    T max = T{10000}; // Значение по умолчанию
+                    setDerivativeLimits(val, max);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            } else if (key == "derivative_max") {
+                try {
+                    T val = static_cast<T>(std::stod(value));
+                    T min = static_cast<T>(-10000); // Значение по умолчанию
+                    setDerivativeLimits(min, val);
+                } catch (...) {
+                    // Игнорируем ошибки преобразования
+                }
+            }
+        }
     }
 
     /**
