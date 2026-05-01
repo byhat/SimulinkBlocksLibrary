@@ -23,3 +23,5 @@
 #include "Flightgear/FlightGearReceiver.hpp"
 #include "Flightgear/SendUdp.hpp"
 
+#include "SerialPort/SerialSend.hpp"
+#include "SerialPort/SerialReceive.hpp"
