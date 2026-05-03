@@ -2,6 +2,7 @@
 build
 out
 .vscode
+__pycache__
 
 # ---> Qt
 # C++ objects and libs

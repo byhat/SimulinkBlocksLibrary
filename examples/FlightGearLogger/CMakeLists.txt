@@ -8,9 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Найти Boost
 find_package(Boost REQUIRED)
 
-# Подключить OpenXLSX как подмодуль
-add_subdirectory(external/OpenXLSX)
-
 # Создать исполняемый файл
 add_executable(FlightGearLogger main.cpp
     AsyncExelWriter.h

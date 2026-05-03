@@ -61,13 +61,13 @@ int main()
     SimulinkBlock:LongitudalControl<double> longitudal;
 
     // Настройки коэффициентов контуров управления
-    longitudal.setAltitudePidCoeffs(1.5, 0.5, 0.1);
-    longitudal.setAngularVelocityPidCoeffs(-1.0, -0.01, -0.01);
-    longitudal.setPitchAnglePidCoeffs(1.0, 0.0, 0.0);
+    longitudal.setAltitudePidCoeffs(0.8, 0.1, 0.5);
+    longitudal.setAngularVelocityPidCoeffs(-1.0, 0.0, 0.0);
+    longitudal.setPitchAnglePidCoeffs(1.0, 0.1, 0.0);
     longitudal.setVelocityPidCoeffs(1.0, 0.01, 0);
 
     // Настройки ограничений контуров (ограничение на угол тангажа)
-    longitudal.setSaturationLimits(-0.3, 0.3);
+    longitudal.setSaturationLimits(-0.4, 0.4);
 
     // Включение/отключение контуров управления
     longitudal.enableAltitudeControl(true);
