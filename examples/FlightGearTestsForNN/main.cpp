@@ -250,13 +250,14 @@ void climbControl(FGNetCtrls& ctrls, const FGNetFDM& fdm,
         ctrls.master_alt[i] = B2L(1);  // Master alternator ON
         ctrls.mixture[i] = B2L(1.0);  // Full rich mixture
         
-        // Reduce throttle as we approach target altitude
-        // Use 80% throttle when far from target, reduce to 60% when close
+        // Use full throttle for climbing - this was the main issue
+        // The aircraft needs more power to climb effectively
+        // Only reduce throttle when very close to target altitude (within 50m)
         double alt_error = TARGET_ALTITUDE - current_alt;
-        double throttle = 0.8;
-        if (alt_error < 200.0) {
-            // Within 200m of target, reduce throttle
-            throttle = 0.6 + (alt_error / 200.0) * 0.2;
+        double throttle = 1.0;  // Full throttle for climbing
+        if (alt_error < 50.0) {
+            // Within 50m of target, reduce throttle to cruise level
+            throttle = 0.7 + (alt_error / 50.0) * 0.3;
         }
         ctrls.throttle[i] = B2L(std::clamp(throttle, 0.0, 1.0));
     }
@@ -378,8 +379,29 @@ void executeTest(FGNetCtrls& ctrls, const FGNetFDM& fdm, double time_in_state,
     writer.addToQueue(std::move(row_data));
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     std::signal(SIGINT, signal_handler);
+
+    // Parse command line arguments
+    bool freq_analysis_only = false;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--freq-analysis" || arg == "-f") {
+            freq_analysis_only = true;
+        } else if (arg == "--help" || arg == "-h") {
+            std::cout << "Usage: " << argv[0] << " [options]\n"
+                      << "Options:\n"
+                      << "  --freq-analysis, -f    Run only frequency analysis test (Test 0) at all altitudes\n"
+                      << "  --help, -h             Show this help message\n";
+            return 0;
+        }
+    }
+
+    if (freq_analysis_only) {
+        std::cout << "Running frequency analysis test only at all altitudes." << std::endl;
+    } else {
+        std::cout << "Running all tests at all altitudes." << std::endl;
+    }
 
     // Hardcoded altitudes to test (10 altitudes from 200m to 2000m)
     std::vector<double> altitudes = {200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000};
@@ -472,6 +494,48 @@ int main() {
     
     // Cruise Flight Tests (3 tests)
     std::vector<TestConfig> tests = {
+        // Test 0: Частотный анализ по рулю высоты (Frequency analysis - elevator)
+        // Sinusoidal elevator input with alternating frequency and amplitude sweeps for frequency response analysis
+        {
+            "Частотный анализ по рулю высоты (Frequency analysis - elevator)",
+            60.0,  // 60 seconds (longer to accommodate alternating sweeps)
+            [&](FGNetCtrls& c, const FGNetFDM& f, double t) {
+                // Apply stable flight control for lateral and throttle
+                applyStableFlightControl(c, f, lateral_ref, longitudal_ref);
+                
+                // Maintain cruise throttle
+                for (int i = 0; i < 4; ++i) {
+                    c.throttle[i] = B2L(0.7);
+                }
+                
+                double frequency;
+                double amplitude;
+                
+                // Alternating pattern: frequency sweep (0-15s), amplitude sweep (15-30s),
+                // frequency sweep (30-45s), amplitude sweep (45-60s)
+                if (t < 15.0) {
+                    // First frequency sweep: 0.1 Hz to 2.0 Hz
+                    frequency = 0.1 + (1.9 * t / 15.0);
+                    amplitude = 0.15;  // Constant amplitude during frequency sweep
+                } else if (t < 30.0) {
+                    // First amplitude sweep: 0.1 to 0.2
+                    frequency = 2.0;  // Constant frequency during amplitude sweep
+                    amplitude = 0.1 + (0.1 * (t - 15.0) / 15.0);
+                } else if (t < 45.0) {
+                    // Second frequency sweep: 2.0 Hz to 0.1 Hz (reverse)
+                    frequency = 2.0 - (1.9 * (t - 30.0) / 15.0);
+                    amplitude = 0.2;  // Constant amplitude during frequency sweep
+                } else {
+                    // Second amplitude sweep: 0.2 to 0.1 (reverse)
+                    frequency = 0.1;  // Constant frequency during amplitude sweep
+                    amplitude = 0.2 - (0.1 * (t - 45.0) / 15.0);
+                }
+                
+                // Apply sinusoidal elevator input
+                c.elevator = B2L(amplitude * sin(2.0 * M_PI * frequency * t));
+            }
+        },
+        
         // Test 1: Разгон в крейсерском полёте (Acceleration in cruise flight)
         // Increase throttle to max, record response
         {
@@ -738,7 +802,11 @@ int main() {
             // Move to next test
             current_test++;
             
-            if (current_test >= static_cast<int>(tests.size())) {
+            // Check if we should stop after Test 0 (frequency analysis only mode)
+            if (freq_analysis_only) {
+                std::cout << "Frequency analysis test completed at current altitude!" << std::endl;
+                state = TestState::DONE;
+            } else if (current_test >= static_cast<int>(tests.size())) {
                 std::cout << "All tests at current altitude completed!" << std::endl;
                 state = TestState::DONE;
             } else {
