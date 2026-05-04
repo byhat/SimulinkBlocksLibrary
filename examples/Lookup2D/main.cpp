@@ -20,7 +20,8 @@ int main()
 
     SimulinkBlock::LookupTable2D<double, 6, 2> myTable(x_arr, y_arr, z_arr_correct);
 
-    myTable.interpolate(4.0, 22.0);
+    // myTable.interpolate(4.0, 22.0);
+    myTable.interpolateReverseY(4.0, 475.0);
 
     std::cout << "Результат интерполяции: " << myTable.getOutput() << '\n';
               

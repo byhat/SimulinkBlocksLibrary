@@ -3,6 +3,7 @@
 #include <array>
 #include <algorithm>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -21,7 +22,7 @@ template <typename T, std::size_t X_size, std::size_t Y_size>
 class LookupTable2D
 {
 private:
-    std::mutex mtx;  //!< Мьютекс для блокировки одновременного доступа к переменным класса
+    std::shared_mutex mtx;  //!< Мьютекс для блокировки одновременного доступа к переменным класса
     T output = T(0); //!< Значение, интерполированное/экстраполированное из таблицы
 
     // Ось X и Y должны быть отсортированы по возрастанию для корректной работы std::upper_bound!
@@ -52,7 +53,7 @@ public:
      */
     void interpolate(const T& inputX, const T& inputY)
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::shared_lock<std::shared_mutex> lock(mtx);
 
         // 1. Поиск интервала по оси X
         size_t ix1 = 0;
@@ -97,12 +98,73 @@ public:
     }
 
     /**
+     * @brief Обратная интерполяция: по X и Z находит Y
+     * @param inputX Входное значение по оси X (например, частота)
+     * @param inputZ Входное значение Z (например, мощность)
+     */
+    void interpolateReverseY(const T& inputX, const T& inputZ)
+    {
+        std::shared_lock<std::shared_mutex> lock(mtx);
+
+        // 1. Находим интервал по оси X (стандартно)
+        size_t ix1 = 0;
+        auto it_x = std::upper_bound(x.begin(), x.end(), inputX);
+        if (it_x == x.begin()) ix1 = 0;
+        else if (it_x == x.end()) ix1 = X_size - 2;
+        else ix1 = std::distance(x.begin(), it_x) - 1;
+
+        size_t ix2 = std::min(ix1 + 1, X_size - 1);
+        T x1 = x[ix1], x2 = x[ix2];
+
+        // Лямбда-функция для поиска Y по срезу Z при фиксированном X
+        auto findYForZSlice = [&](size_t ix) -> T {
+            // Собираем столбец Z для текущей X
+            std::array<T, Y_size> z_slice;
+            for (size_t i = 0; i < Y_size; ++i) {
+                z_slice[i] = z[i][ix];
+            }
+
+            // Ищем позицию inputZ в УБЫВАЮЩЕМ массиве z_slice.
+            // Для убывающего массива используем компаратор std::greater<T>()
+            auto it_z = std::upper_bound(z_slice.begin(), z_slice.end(), inputZ, std::greater<T>());
+
+            size_t iy1 = 0;
+            if (it_z == z_slice.begin()) iy1 = 0;               // Экстраполяция
+            else if (it_z == z_slice.end()) iy1 = Y_size - 2;   // Экстраполяция
+            else iy1 = std::distance(z_slice.begin(), it_z) - 1; // Интерполяция
+
+            size_t iy2 = std::min(iy1 + 1, Y_size - 1);
+
+            T z1 = z_slice[iy1];
+            T z2 = z_slice[iy2];
+            T y1 = y[iy1];
+            T y2 = y[iy2];
+
+            // Доля смещения по оси Z
+            T tz = (z1 == z2) ? T(0) : (inputZ - z1) / (z2 - z1);
+
+            // Линейная интерполяция, чтобы получить Y
+            return y1 + tz * (y2 - y1);
+        };
+
+        // 2. Находим Y для левой границы X
+        T y_at_x1 = findYForZSlice(ix1);
+        // 3. Находим Y для правой границы X
+        T y_at_x2 = findYForZSlice(ix2);
+
+        // 4. Финальная интерполяция между полученными Y по оси X
+        T tx = (x2 == x1) ? T(0) : (inputX - x1) / (x2 - x1);
+
+        output = y_at_x1 + tx * (y_at_x2 - y_at_x1);
+    }
+
+    /**
      * @brief Получить текущее выходное значение
      * @return Ссылка на текущее значение, экстраполированное из таблицы
      */
     const T& getOutput()
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::unique_lock<std::shared_mutex> lock(mtx);
         return output;
     }
 
@@ -121,7 +183,7 @@ public:
      */
     void setSettings(const std::unordered_map<std::string, std::string> &settings)
     {
-        std::lock_guard<std::mutex> lock(mtx); // Используем основной мьютекс для безопасности!
+        std::shared_lock<std::shared_mutex> lock(mtx);
 
         for (const auto &[key, value] : settings) {
             try {
@@ -143,7 +205,7 @@ public:
       */
     void reset()
     {
-        std::lock_guard<std::mutex> lock(mtx);
+        std::unique_lock<std::shared_mutex> lock(mtx);
         output = T(0);
     }
 
