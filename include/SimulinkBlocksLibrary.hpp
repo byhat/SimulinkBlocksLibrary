@@ -9,6 +9,7 @@
 #include "IntegratorBlock.hpp"
 #include "DerivativeBlock.hpp"
 #include "LookupTable1D.hpp"
+#include "LookupTable2D.hpp"
 #include "TriggeredSubsystem.hpp"
 #include "RandomNumberGenerator.hpp"
 #include "WhiteNoiseGenerator.hpp"
